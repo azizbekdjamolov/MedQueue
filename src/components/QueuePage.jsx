@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import SectionHeading from './ui/SectionHeading'
 import { useLang, useT } from '../i18n'
-import { cancelQueue, fetchDashboard } from '../lib/api'
+import { API_BASE, cancelQueue, fetchDashboard } from '../lib/api'
 
 const MIN_PER_PERSON = 5
 
@@ -71,7 +71,7 @@ export default function QueuePage({ navigate }) {
   useEffect(() => {
     let es
     try {
-      es = new EventSource('/api/queue/stream')
+      es = new EventSource(`${API_BASE}/api/queue/stream`, { withCredentials: true })
     } catch {
       return
     }

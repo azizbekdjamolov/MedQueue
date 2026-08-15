@@ -639,7 +639,6 @@ export default function ProfilePage({ navigate }) {
               )}
               </AnimatePresence>
             </div>
-          </div>
 
           <TelegramSection t={t} />
         </motion.section>

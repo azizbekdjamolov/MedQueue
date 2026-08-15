@@ -1,16 +1,24 @@
 /**
  * Small typed fetch helpers for the MedQueue backend.
- * All calls go through the Vite dev proxy in development and the same
- * origin in production — the frontend never talks to providers directly.
+ * In development calls go through the Vite dev proxy (same origin); in
+ * production the frontend is hosted separately (Render Static Site), so
+ * VITE_API_BASE_URL must point at the backend, e.g.
+ *   https://medqueue-api.onrender.com
  */
 
 import { ApiError, handleSessionExpired } from './auth'
+
+export const API_BASE = (import.meta.env.VITE_API_BASE_URL ?? '').replace(/\/+$/, '')
+
+function apiUrl(url) {
+  return API_BASE + url
+}
 
 async function getJson(url, timeoutMs = 15000) {
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), timeoutMs)
   try {
-    const res = await fetch(url, { signal: controller.signal, credentials: 'same-origin' })
+    const res = await fetch(apiUrl(url), { signal: controller.signal, credentials: 'include' })
     if (res.status === 401 && !url.startsWith('/api/auth/')) handleSessionExpired()
     const data = await res.json().catch(() => null)
     if (!res.ok || !data) throw new Error(`Request failed: ${res.status}`)
@@ -33,10 +41,10 @@ async function sendJson(url, method, body, timeoutMs = 20000) {
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), timeoutMs)
   try {
-    const res = await fetch(url, {
+    const res = await fetch(apiUrl(url), {
       method,
       headers: { 'Content-Type': 'application/json' },
-      credentials: 'same-origin',
+      credentials: 'include',
       body: body == null ? undefined : JSON.stringify(body),
       signal: controller.signal,
     })

@@ -176,8 +176,19 @@ function currentUser(req) {
   return getUserFromToken(readSessionToken(req.headers.cookie))
 }
 
-function authHeaders(res, extra = {}) {
-  return { ...extra, 'Set-Cookie': sessionCookieValue('', false) }
+/** True when the request comes from a different origin than this server. */
+function isCrossOrigin(req) {
+  const origin = req.headers.origin
+  if (typeof origin !== 'string' || !origin) return false
+  try {
+    return new URL(origin).host !== (req.headers.host ?? '')
+  } catch {
+    return false
+  }
+}
+
+function authHeaders(req, res, extra = {}) {
+  return { ...extra, 'Set-Cookie': sessionCookieValue('', false, isCrossOrigin(req)) }
 }
 
 /** 401 payload — used by every protected endpoint. */
@@ -219,7 +230,7 @@ async function handleRegister(req, res, headers, body) {
 
   const user = await registerUser(data)
   const session = createSession(user.id, body?.remember === true)
-  const cookie = sessionCookieValue(session.token, body?.remember === true)
+  const cookie = sessionCookieValue(session.token, body?.remember === true, isCrossOrigin(req))
   sendJson(
     res,
     201,
@@ -242,14 +253,14 @@ async function handleLogin(req, res, headers, body) {
     res,
     200,
     { user: publicUser(user), redirect: typeof body?.redirect === 'string' ? body.redirect : '/cabinet' },
-    { ...headers, 'Set-Cookie': sessionCookieValue(session.token, remember) }
+    { ...headers, 'Set-Cookie': sessionCookieValue(session.token, remember, isCrossOrigin(req)) }
   )
 }
 
 function handleLogout(req, res, headers) {
   const token = readSessionToken(req.headers.cookie)
   destroySession(token)
-  sendJson(res, 200, { ok: true }, authHeaders(res, headers))
+  sendJson(res, 200, { ok: true }, authHeaders(req, res, headers))
 }
 
 function handleMe(req, res, headers) {

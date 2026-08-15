@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { motion } from 'framer-motion'
 import { useLang, useT } from '../i18n'
-import { fetchDashboard } from '../lib/api'
+import { API_BASE, fetchDashboard } from '../lib/api'
 import { useAuth } from '../lib/auth'
 
 const MIN_PER_PERSON = 5
@@ -158,7 +158,7 @@ export default function DashboardPage({ navigate }) {
   useEffect(() => {
     let es
     try {
-      es = new EventSource('/api/queue/stream')
+      es = new EventSource(`${API_BASE}/api/queue/stream`, { withCredentials: true })
     } catch {
       return
     }

@@ -277,12 +277,12 @@ export function getUserFromToken(token) {
   return findUserById(session.userId)
 }
 
-export function sessionCookieValue(token, remember) {
+export function sessionCookieValue(token, remember, crossOrigin = false) {
   const parts = [
     `${SESSION_COOKIE}=${token}`,
     'Path=/',
     'HttpOnly',
-    'SameSite=Lax',
+    crossOrigin ? 'SameSite=None; Secure' : 'SameSite=Lax',
   ]
   if (remember) parts.push(`Max-Age=${Math.floor(SESSION_REMEMBER_MS / 1000)}`)
   return parts.join('; ')

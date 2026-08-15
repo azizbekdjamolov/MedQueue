@@ -1,0 +1,341 @@
+@import "tailwindcss";
+
+@theme {
+  --font-display: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+
+  --color-void: #05060f;
+  --color-abyss: #090b1c;
+  --color-panel: #0c0e20;
+
+  --color-neon-300: #c4b5fd;
+  --color-neon-400: #a78bfa;
+  --color-neon-500: #8b5cf6;
+  --color-neon-600: #7c3aed;
+  --color-electric-300: #7dd3fc;
+  --color-electric-400: #38bdf8;
+  --color-electric-500: #0ea5e9;
+
+  --animate-float: float 8s ease-in-out infinite;
+  --animate-pulse-glow: pulse-glow 5s ease-in-out infinite;
+  --animate-spin-slow: spin 24s linear infinite;
+
+  @keyframes float {
+    0%,
+    100% {
+      transform: translateY(0);
+    }
+    50% {
+      transform: translateY(-14px);
+    }
+  }
+
+  @keyframes pulse-glow {
+    0%,
+    100% {
+      opacity: 0.55;
+    }
+    50% {
+      opacity: 1;
+    }
+  }
+}
+
+/*
+ * Semantic theme tokens. `@theme inline` maps each token to a runtime CSS
+ * variable, so utilities like `bg-bg`, `text-fg`, `border-border` follow the
+ * active `data-theme` on <html>. Never hardcode theme colors in components.
+ */
+@theme inline {
+  --color-bg: var(--bg);
+  --color-bg-soft: var(--bg-soft);
+  --color-fg: var(--fg);
+  --color-muted: var(--muted);
+  --color-faint: var(--faint);
+  --color-card: var(--card);
+  --color-card-hover: var(--card-hover);
+  --color-card-solid: var(--card-solid);
+  --color-card-strong: var(--card-strong);
+  --color-navbar: var(--navbar);
+  --color-input: var(--input);
+  --color-input-focus: var(--input-focus);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-ai-bot: var(--ai-bot);
+  --color-accent: var(--accent);
+  --color-ghost: var(--ghost-bg);
+  --color-ghost-hover: var(--ghost-hover);
+  --color-ghost-text: var(--ghost-text);
+}
+
+@layer base {
+  :root,
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+
+    --bg: #05060f;
+    --bg-soft: #090b1c;
+    --fg: #e2e8f0;
+    --muted: #94a3b8;
+    --faint: #64748b;
+
+    --card: rgb(255 255 255 / 0.04);
+    --card-hover: rgb(255 255 255 / 0.08);
+    --card-solid: rgb(9 11 28 / 0.55);
+    --card-strong: rgb(10 12 30 / 0.72);
+    --navbar: rgb(10 12 30 / 0.72);
+    --input: rgb(255 255 255 / 0.05);
+    --input-focus: rgb(255 255 255 / 0.08);
+    --border: rgb(255 255 255 / 0.09);
+    --border-strong: rgb(255 255 255 / 0.16);
+    --ai-bot: rgb(255 255 255 / 0.05);
+
+    --accent: #c4b5fd;
+    --ghost-bg: rgb(255 255 255 / 0.05);
+    --ghost-hover: rgb(255 255 255 / 0.1);
+    --ghost-text: #e2e8f0;
+
+    --grad-a: var(--color-neon-400);
+    --grad-b: var(--color-electric-400);
+    --grad-c: var(--color-electric-300);
+
+    --blob-a: rgb(109 40 217 / 0.15);
+    --blob-b: rgb(14 165 233 / 0.1);
+    --blob-c: rgb(124 58 237 / 0.15);
+
+    --nav-shadow: 0 8px 40px rgb(5 6 15 / 0.6);
+    --glow-soft: 0 0 20px rgb(139 92 246 / 0.4);
+    --glow-strong: 0 0 36px rgb(139 92 246 / 0.6);
+    --focus-ring: rgb(56 189 248 / 0.9);
+  }
+
+  :root[data-theme="light"] {
+    color-scheme: light;
+
+    --bg: #f3f5fc;
+    --bg-soft: #ffffff;
+    --fg: #1c2340;
+    --muted: #4c5573;
+    --faint: #77809c;
+
+    --card: rgb(255 255 255 / 0.6);
+    --card-hover: rgb(255 255 255 / 0.95);
+    --card-solid: rgb(255 255 255 / 0.8);
+    --card-strong: rgb(255 255 255 / 0.88);
+    --navbar: rgb(255 255 255 / 0.85);
+    --input: rgb(255 255 255 / 0.85);
+    --input-focus: #ffffff;
+    --border: rgb(28 40 90 / 0.1);
+    --border-strong: rgb(28 40 90 / 0.18);
+    --ai-bot: rgb(255 255 255 / 0.92);
+
+    --accent: #6d28d9;
+    --ghost-bg: rgb(255 255 255 / 0.85);
+    --ghost-hover: #ffffff;
+    --ghost-text: #2a3252;
+
+    --grad-a: #7c3aed;
+    --grad-b: #2563eb;
+    --grad-c: #0891b2;
+
+    --blob-a: rgb(124 58 237 / 0.09);
+    --blob-b: rgb(14 165 233 / 0.08);
+    --blob-c: rgb(56 189 248 / 0.12);
+
+    --nav-shadow: 0 8px 32px rgb(23 34 72 / 0.1);
+    --glow-soft: 0 0 20px rgb(139 92 246 / 0.25);
+    --glow-strong: 0 0 32px rgb(139 92 246 / 0.38);
+    --focus-ring: rgb(37 99 235 / 0.8);
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    background-color: var(--bg);
+    color: var(--fg);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    transition: background-color 0.3s ease, color 0.3s ease;
+  }
+
+  ::selection {
+    background: rgb(139 92 246 / 0.4);
+    color: #fff;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: 2px;
+  }
+}
+
+@utility glass {
+  background: var(--card);
+  border: 1px solid var(--border);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
+@utility glass-solid {
+  background: var(--card-solid);
+  border: 1px solid var(--border);
+}
+
+@utility glass-strong {
+  background: var(--card-strong);
+  border: 1px solid var(--border);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+}
+
+@utility text-gradient {
+  background-image: linear-gradient(
+    100deg,
+    var(--grad-a) 0%,
+    var(--grad-b) 55%,
+    var(--grad-c) 100%
+  );
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
+}
+
+/* --- AI markdown rendering ------------------------------------------- */
+
+.mq-code-block {
+  position: relative;
+  margin: 0.5rem 0;
+  overflow-x: auto;
+  border-radius: 0.75rem;
+  border: 1px solid var(--border);
+  background: var(--input);
+  padding: 0.75rem 1rem;
+  font-size: 0.75rem;
+  line-height: 1.55;
+}
+
+.mq-code-block code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  white-space: pre;
+}
+
+.mq-code-lang {
+  position: absolute;
+  top: 0.4rem;
+  right: 0.75rem;
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+
+.mq-code-block + .mq-code-block {
+  margin-top: 0.75rem;
+}
+
+.ai-message p {
+  margin: 0.35rem 0;
+}
+
+.ai-message p:first-child {
+  margin-top: 0;
+}
+
+.ai-message p:last-child {
+  margin-bottom: 0;
+}
+
+.ai-message h1,
+.ai-message h2,
+.ai-message h3,
+.ai-message h4,
+.ai-message h5,
+.ai-message h6 {
+  margin: 0.85rem 0 0.4rem;
+  font-family: var(--font-display);
+  font-weight: 600;
+  line-height: 1.25;
+  color: var(--fg);
+}
+
+.ai-message h1 {
+  font-size: 1.05rem;
+}
+
+.ai-message h2 {
+  font-size: 0.95rem;
+}
+
+.ai-message h3 {
+  font-size: 0.875rem;
+}
+
+.ai-message h4,
+.ai-message h5,
+.ai-message h6 {
+  font-size: 0.8125rem;
+}
+
+.ai-message ul,
+.ai-message ol {
+  margin: 0.4rem 0;
+  padding-left: 1.25rem;
+}
+
+.ai-message ul {
+  list-style: disc;
+}
+
+.ai-message ol {
+  list-style: decimal;
+}
+
+.ai-message li {
+  margin: 0.2rem 0;
+}
+
+.ai-message blockquote {
+  margin: 0.5rem 0;
+  border-left: 2px solid var(--accent);
+  padding: 0.1rem 0.85rem;
+  color: var(--muted);
+  background: var(--card);
+  border-radius: 0 0.5rem 0.5rem 0;
+}
+
+.ai-message hr {
+  margin: 0.85rem 0;
+  border: 0;
+  border-top: 1px solid var(--border);
+}
+
+.ai-message code {
+  border-radius: 0.375rem;
+  border: 1px solid var(--border);
+  background: var(--input);
+  padding: 0.1rem 0.35rem;
+  font-size: 0.75em;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  color: var(--accent);
+}
+
+.ai-message pre code {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  color: inherit;
+}
+
+.ai-message a {
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.ai-message a:hover {
+  text-decoration-thickness: 2px;
+}

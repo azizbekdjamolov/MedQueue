@@ -401,7 +401,7 @@ export default {
       account: "Telegram akkaunt",
       notificationsOn: "Bildirishnomalar yoqilgan.",
       unlink: "Ulanishni bekor qilish",
-      codeHint: "Telegram botga ushbu kodni yuboring (@MedQueueBot):",
+      codeHint: "Telegram botga ushbu kodni yuboring (@Divergent_1308_Bot):",
       expires: "Kod muddati:",
       minutes: "daqiqa",
     },

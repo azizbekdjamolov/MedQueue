@@ -399,7 +399,7 @@ export default {
       account: "Telegram account",
       notificationsOn: "Notifications enabled.",
       unlink: "Unlink",
-      codeHint: "Send this code to the bot in Telegram (@MedQueueBot):",
+      codeHint: "Send this code to the bot in Telegram (@Divergent_1308_Bot):",
       expires: "Code expires in:",
       minutes: "minutes",
     },

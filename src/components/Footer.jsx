@@ -15,7 +15,7 @@ function FooterLinkGroups(t) {
     {
       heading: t('footer.resources'),
       links: [
-        { label: t('footer.telegram'), href: '#' },
+        { label: t('footer.telegram'), href: 'https://t.me/Divergent_1308_Bot' },
         { label: t('nav.queue'), href: '/queue' },
         { label: t('nav.laboratory'), href: '/laboratory' },
         { label: t('footer.status'), href: '#' },
@@ -54,7 +54,7 @@ const SOCIALS = [
   },
   {
     label: 'Telegram',
-    href: '#',
+    href: 'https://t.me/Divergent_1308_Bot',
     icon: (
       <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
         <path d="M21.9 4.3 18.8 19c-.2 1-.8 1.3-1.7.8l-4.7-3.5-2.3 2.2c-.3.3-.5.5-1 .5l.4-4.7L18.3 7c.4-.3-.1-.5-.6-.2L7.3 13.3l-4.6-1.4c-1-.3-1-1 .2-1.5l18-7c.8-.3 1.5.2 1.3 1.4Z" />

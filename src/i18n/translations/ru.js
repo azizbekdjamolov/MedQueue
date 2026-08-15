@@ -400,7 +400,7 @@ export default {
       account: "Аккаунт Telegram",
       notificationsOn: "Уведомления включены.",
       unlink: "Отвязать",
-      codeHint: "Отправьте этот код боту в Telegram (@MedQueueBot):",
+      codeHint: "Отправьте этот код боту в Telegram (@Divergent_1308_Bot):",
       expires: "Срок действия кода:",
       minutes: "минут",
     },

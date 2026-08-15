@@ -1,4 +1,5 @@
 import { useSyncExternalStore } from 'react'
+import { API_BASE } from './api'
 
 /**
  * MedQueue Tashkent — authentication store.
@@ -83,7 +84,7 @@ export function useAuth() {
 export async function bootstrapAuth() {
   if (bootstrapped) return
   try {
-    const data = await fetch('/api/auth/me', { credentials: 'same-origin' })
+    const data = await fetch(`${API_BASE}/api/auth/me`, { credentials: 'include' })
     if (data.ok) {
       const body = await data.json()
       setState(body.user ?? null)
@@ -99,10 +100,10 @@ export async function bootstrapAuth() {
 }
 
 export async function login(identifier, password, remember = false) {
-  const res = await fetch('/api/auth/login', {
+  const res = await fetch(`${API_BASE}/api/auth/login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    credentials: 'same-origin',
+    credentials: 'include',
     body: JSON.stringify({ identifier, password, remember }),
   })
   const data = await res.json().catch(() => null)
@@ -114,10 +115,10 @@ export async function login(identifier, password, remember = false) {
 }
 
 export async function register(fields) {
-  const res = await fetch('/api/auth/register', {
+  const res = await fetch(`${API_BASE}/api/auth/register`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    credentials: 'same-origin',
+    credentials: 'include',
     body: JSON.stringify(fields),
   })
   const data = await res.json().catch(() => null)
@@ -131,7 +132,7 @@ export async function register(fields) {
 
 export async function logout() {
   try {
-    await fetch('/api/auth/logout', { method: 'POST', credentials: 'same-origin' })
+    await fetch(`${API_BASE}/api/auth/logout`, { method: 'POST', credentials: 'include' })
   } catch {
     // Even if the server is unreachable, clear the local session.
   }

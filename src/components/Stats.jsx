@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { animate, useInView } from 'framer-motion'
 import SectionHeading from './ui/SectionHeading'
 import { useT } from '../i18n'
+import { API_BASE } from '../lib/api'
 
 const FALLBACK = [
   { value: 25, decimals: 0, suffix: '+', labelKey: 'stats.labels.clinics' },
@@ -25,9 +26,9 @@ function useLiveStats() {
         const controller = new AbortController()
         timer = setTimeout(() => controller.abort(), 6000)
         const [clinicsRes, doctorsRes, statsRes] = await Promise.all([
-          fetch('/api/clinics', { signal: controller.signal }),
-          fetch('/api/doctors', { signal: controller.signal }),
-          fetch('/api/stats', { signal: controller.signal }),
+          fetch(`${API_BASE}/api/clinics`, { signal: controller.signal }),
+          fetch(`${API_BASE}/api/doctors`, { signal: controller.signal }),
+          fetch(`${API_BASE}/api/stats`, { signal: controller.signal }),
         ])
         clearTimeout(timer)
         const [clinics, doctors, stats] = await Promise.all([

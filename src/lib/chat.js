@@ -1,3 +1,5 @@
+import { API_BASE } from './api'
+
 const CONVERSATION_KEY = 'medqueue.conversationId'
 const LEGACY_CONVERSATION_KEY = 'nexora.conversationId'
 const CHAT_TIMEOUT_MS = 45000
@@ -68,7 +70,7 @@ export async function checkBackendHealth() {
   try {
     const controller = new AbortController()
     const timer = setTimeout(() => controller.abort(), 5000)
-    const res = await fetch('/api/health', { signal: controller.signal })
+    const res = await fetch(`${API_BASE}/api/health`, { signal: controller.signal })
     clearTimeout(timer)
     return res.ok
   } catch {
@@ -99,7 +101,7 @@ export async function sendChatMessage({ message, conversationId, language, image
 
   let res
   try {
-    res = await fetch('/api/chat', {
+    res = await fetch(`${API_BASE}/api/chat`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -110,6 +112,7 @@ export async function sendChatMessage({ message, conversationId, language, image
         stream: Boolean(onDelta),
       }),
       signal: controller.signal,
+      credentials: 'include',
     })
   } catch {
     throw new ChatError('network', 'Cannot reach the server.')
@@ -209,11 +212,12 @@ export async function analyzeFile({ filename, mime, base64, question, language }
 
   let res
   try {
-    res = await fetch('/api/ai/analyze-file', {
+    res = await fetch(`${API_BASE}/api/ai/analyze-file`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ filename, mime, base64, question, language }),
       signal: controller.signal,
+      credentials: 'include',
     })
   } catch {
     throw new ChatError('network', 'Cannot reach the server.')

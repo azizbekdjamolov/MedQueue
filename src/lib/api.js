@@ -128,6 +128,32 @@ export async function cancelQueue(doctorId, lang = 'uz') {
   return data.queue
 }
 
+/* ------------------------- Telegram linking ------------------------- */
+
+export function apiTelegramStatus() {
+  return getJson('/api/telegram/status')
+}
+
+export async function apiTelegramLink() {
+  const { ok, status, data } = await sendJson('/api/telegram/link', 'POST', {}, 15000)
+  if (!ok || !data?.link) throw new Error(`Request failed: ${status}`)
+  return data.link
+}
+
+export async function apiTelegramUnlink() {
+  const { ok, status } = await sendJson('/api/telegram/unlink', 'POST', {}, 15000)
+  if (!ok) throw new Error(`Request failed: ${status}`)
+  return true
+}
+
+export function apiTelegramBotStatus() {
+  return getJson('/api/telegram/status')
+}
+
+export function apiAvailability(doctorId, date, lang = 'uz') {
+  return getJson(`/api/appointments/availability${qs({ doctor_id: doctorId, date, lang })}`)
+}
+
 export async function aiSearch(query, lang = 'uz') {
   const { ok, status, data } = await sendJson(
     '/api/ai/search',

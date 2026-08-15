@@ -1223,7 +1223,8 @@ export function getQueueStatus(doctorId, patientId = DEMO_PATIENT.id, lang = 'uz
   }
 }
 
-export function takeQueue(doctorId, patientId = DEMO_PATIENT.id, lang = 'uz') {
+export function takeQueue(doctorId, patientId = DEMO_PATIENT.id, lang = 'uz', options = {}) {
+  const { date = 'today', time = 'now', source = 'website' } = options ?? {}
   const doctor = DOCTORS.find((d) => d.id === doctorId)
   if (!doctor) return null
   const queue = QUEUES.get(doctor.id)
@@ -1241,10 +1242,15 @@ export function takeQueue(doctorId, patientId = DEMO_PATIENT.id, lang = 'uz') {
     doctorId,
     clinicId: clinic.id,
     specialtyId: doctor.specialtyId,
-    date: 'today',
-    time: 'now',
-    status: 'queue',
+    date,
+    time,
+    appointmentDate: date,
+    appointmentTime: time,
+    queueNumber: `${queue.letter}-${queue.lastIssued}`,
+    status: 'confirmed',
+    source,
     createdAt: Date.now(),
+    updatedAt: Date.now(),
   }
   APPOINTMENTS.unshift(appointment)
   NOTIFICATIONS.unshift({
@@ -1265,7 +1271,7 @@ export function takeQueue(doctorId, patientId = DEMO_PATIENT.id, lang = 'uz') {
     read: false,
   })
 
-  return getQueueStatus(doctorId, patientId, lang)
+  return { ...getQueueStatus(doctorId, patientId, lang), queueNumber: appointment.queueNumber }
 }
 
 /**
@@ -1283,9 +1289,12 @@ export function cancelQueue(doctorId, patientId = DEMO_PATIENT.id, lang = 'uz') 
     queue.updatedAt = Date.now()
   }
   const appIndex = APPOINTMENTS.findIndex(
-    (a) => a.patientId === patientId && a.doctorId === doctorId && a.status === 'queue'
+    (a) => a.patientId === patientId && a.doctorId === doctorId && a.status !== 'cancelled'
   )
-  if (appIndex !== -1) APPOINTMENTS.splice(appIndex, 1)
+  if (appIndex !== -1) {
+    APPOINTMENTS[appIndex].status = 'cancelled'
+    APPOINTMENTS[appIndex].updatedAt = Date.now()
+  }
   NOTIFICATIONS.unshift({
     id: `n-${Date.now()}`,
     patientId,
@@ -1306,22 +1315,132 @@ export function cancelQueue(doctorId, patientId = DEMO_PATIENT.id, lang = 'uz') 
   return getQueueStatus(doctorId, patientId, lang)
 }
 
+/** Map internal appointment statuses to the display set used by the UI. */
+function displayStatus(status) {
+  if (status === 'cancelled' || status === 'no_show') return 'cancelled'
+  if (status === 'completed') return 'completed'
+  if (status === 'called') return 'queue'
+  return 'upcoming' // waiting | confirmed | legacy upcoming/queue
+}
+
 export function listAppointments(patientId = DEMO_PATIENT.id, lang = 'uz') {
   return APPOINTMENTS.filter((a) => a.patientId === patientId).map((a) => {
     const doctor = DOCTORS.find((d) => d.id === a.doctorId)
     const clinic = CLINICS.find((c) => c.id === a.clinicId)
     return {
       id: a.id,
+      patientId: a.patientId,
+      doctorId: a.doctorId,
       doctor: doctor ? pick(lang, doctor.name) : '',
       specialty: a.specialtyId ? pick(lang, SPEC(a.specialtyId).name) : '',
       clinic: clinic ? pick(lang, clinic.name) : '',
       district: clinic ? pick(lang, DIST(clinic.district).name) : '',
       date: a.date,
       time: a.time,
-      status: a.status,
+      appointmentDate: a.appointmentDate ?? a.date,
+      appointmentTime: a.appointmentTime ?? a.time,
+      queueNumber: a.queueNumber ?? null,
+      source: a.source ?? 'website',
+      status: displayStatus(a.status),
+      statusRaw: a.status,
       createdAt: a.createdAt,
+      updatedAt: a.updatedAt ?? a.createdAt,
     }
   })
+}
+
+export function getAppointment(id, lang = 'uz') {
+  const a = APPOINTMENTS.find((x) => x.id === id)
+  if (!a) return null
+  return listAppointments(a.patientId, lang).find((x) => x.id === id) ?? null
+}
+
+/** Valid internal appointment statuses (admin/queue transitions). */
+const APPOINTMENT_STATUSES = new Set([
+  'waiting',
+  'confirmed',
+  'called',
+  'completed',
+  'cancelled',
+  'no_show',
+])
+
+/**
+ * Change an appointment's status from the shared backend. Returns the
+ * updated appointment plus a localized notification payload so the caller
+ * can forward it to the user (website SSE + Telegram).
+ */
+export function updateAppointmentStatus(id, status, lang = 'uz') {
+  const a = APPOINTMENTS.find((x) => x.id === id)
+  if (!a) return null
+  if (!APPOINTMENT_STATUSES.has(status)) return { error: 'invalid_status' }
+  a.status = status
+  a.updatedAt = Date.now()
+
+  const doctor = DOCTORS.find((d) => d.id === a.doctorId)
+  const clinic = CLINICS.find((c) => c.id === a.clinicId)
+  const labels = {
+    confirmed: { uz: 'Navbatingiz tasdiqlandi', ru: 'Ваша очередь подтверждена', en: 'Your queue is confirmed' },
+    called: { uz: 'Navbatingiz keldi', ru: 'Ваша очередь подошла', en: 'Your turn has come' },
+    completed: { uz: 'Qabul yakunlandi', ru: 'Приём завершён', en: 'Appointment completed' },
+    cancelled: { uz: 'Navbat bekor qilindi', ru: 'Очередь отменена', en: 'Queue cancelled' },
+    no_show: { uz: 'Qabulga kelmadingiz', ru: 'Вы не пришли', en: 'No show' },
+  }
+  if (labels[status]) {
+    NOTIFICATIONS.unshift({
+      id: `n-${Date.now()}`,
+      patientId: a.patientId,
+      type: `appointment_${status}`,
+      title: labels[status],
+      body: {
+        uz: `${pick(lang, doctor.name)} — ${pick(lang, clinic.name)}, navbat ${a.queueNumber ?? ''}`.trim(),
+        ru: `${pick(lang, doctor.name)} — ${pick(lang, clinic.name)}, очередь ${a.queueNumber ?? ''}`.trim(),
+        en: `${pick(lang, doctor.name)} — ${pick(lang, clinic.name)}, number ${a.queueNumber ?? ''}`.trim(),
+      },
+      createdAt: Date.now(),
+      read: false,
+    })
+  }
+
+  const updated = getAppointment(id, lang)
+  const telegramBody =
+    status === 'called' || status === 'completed' || status === 'confirmed' || status === 'cancelled'
+      ? {
+          uz: `${labels[status].uz}!\n\n${updated.doctor} — ${updated.clinic}\nNavbat: ${updated.queueNumber ?? updated.time}`,
+          ru: `${labels[status].ru}!\n\n${updated.doctor} — ${updated.clinic}\nОчередь: ${updated.queueNumber ?? updated.time}`,
+          en: `${labels[status].en}!\n\n${updated.doctor} — ${updated.clinic}\nNumber: ${updated.queueNumber ?? updated.time}`,
+        }
+      : null
+  return { appointment: updated, notification: telegramBody }
+}
+
+/**
+ * Available appointment time slots for a doctor on a date. Slots are derived
+ * from the clinic's real working hours; slots already taken by this doctor
+ * on that date are excluded. Returns null when the doctor does not exist.
+ */
+export function getAvailableSlots(doctorId, date = 'today', lang = 'uz') {
+  const doctor = DOCTORS.find((d) => d.id === doctorId)
+  if (!doctor) return null
+  const clinic = CLINICS.find((c) => c.id === doctor.clinicId)
+  const [startH, startM] = (clinic.workStart ?? '09:00').split(':').map(Number)
+  const [endH, endM] = (clinic.workEnd ?? '18:00').split(':').map(Number)
+  const taken = new Set(
+    APPOINTMENTS.filter((a) => a.doctorId === doctorId && (a.appointmentDate ?? a.date) === date)
+      .map((a) => a.appointmentTime)
+      .filter((x) => typeof x === 'string' && x.includes(':'))
+  )
+  const slots = []
+  for (let h = startH, m = startM; h * 60 + m < endH * 60 + endM; ) {
+    const time = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`
+    if (!taken.has(time)) slots.push(time)
+    m += 30
+    if (m >= 60) {
+      m -= 60
+      h += 1
+    }
+  }
+  return { doctorId, date, clinic: pick(lang, clinic.name), slots }
 }
 
 export function listLabResults(patientId = DEMO_PATIENT.id, lang = 'uz') {
@@ -1366,7 +1485,9 @@ export function getDashboard(patientId = DEMO_PATIENT.id, lang = 'uz') {
   return {
     patient: patientSummary(patientId, lang),
     activeQueue,
-    appointments: listAppointments(patientId, lang).filter((a) => a.status === 'upcoming'),
+    appointments: listAppointments(patientId, lang).filter(
+      (a) => a.status === 'upcoming' || a.status === 'queue'
+    ),
     labResults: listLabResults(patientId, lang),
     history: listMedicalHistory(patientId, lang),
     notifications: listNotifications(patientId, lang),
@@ -1405,14 +1526,65 @@ export function countTotalQueues() {
   return { total, servedToday }
 }
 
-/** Advance every queue one step. Called by the ticker (see index.js). */
+/** Advance every queue one step. Returns lifecycle events for notifications. */
 export function tickQueues() {
+  const events = []
   for (const queue of QUEUES.values()) {
     if (queue.current < queue.lastIssued) {
       queue.current += 1
       queue.updatedAt = Date.now()
     }
+    for (const entry of queue.patients) {
+      const doctor = DOCTORS.find((d) => d.id === queue.doctorId)
+      const appointment = APPOINTMENTS.find(
+        (a) =>
+          a.patientId === entry.patientId &&
+          a.doctorId === queue.doctorId &&
+          (a.status === 'waiting' || a.status === 'confirmed')
+      )
+      if (!appointment) continue
+      const ahead = entry.number - queue.current
+      if (ahead === 3 && appointment.status !== 'called') {
+        events.push({
+          type: 'approaching',
+          patientId: entry.patientId,
+          doctorId: queue.doctorId,
+          body: {
+            uz: `Navbatingizga ${ahead} kishi qoldi.\n${pick('uz', doctor.name)} — navbat ${queue.letter}-${entry.number}`,
+            ru: `До вашей очереди осталось ${ahead} человек.\n${pick('ru', doctor.name)} — очередь ${queue.letter}-${entry.number}`,
+            en: `${ahead} people until your turn.\n${pick('en', doctor.name)} — number ${queue.letter}-${entry.number}`,
+          },
+        })
+      } else if (ahead === 0 && appointment.status !== 'called') {
+        appointment.status = 'called'
+        appointment.updatedAt = Date.now()
+        events.push({
+          type: 'called',
+          patientId: entry.patientId,
+          doctorId: queue.doctorId,
+          body: {
+            uz: `Navbatingiz keldi!\n${pick('uz', doctor.name)} — qabulga kiring. Navbat ${queue.letter}-${entry.number}`,
+            ru: `Ваша очередь подошла!\n${pick('ru', doctor.name)} — пройдите на приём. Очередь ${queue.letter}-${entry.number}`,
+            en: `Your turn has come!\n${pick('en', doctor.name)} — proceed to the appointment. Number ${queue.letter}-${entry.number}`,
+          },
+        })
+      } else if (ahead < 0 && appointment.status === 'called') {
+        appointment.status = 'completed'
+        appointment.updatedAt = Date.now()
+        events.push({
+          type: 'completed',
+          patientId: entry.patientId,
+          doctorId: queue.doctorId,
+          body: {
+            uz: `Qabul yakunlandi.\n${pick('uz', doctor.name)} — navbat ${queue.letter}-${entry.number}`,
+            ru: `Приём завершён.\n${pick('ru', doctor.name)} — очередь ${queue.letter}-${entry.number}`,
+            en: `Appointment completed.\n${pick('en', doctor.name)} — number ${queue.letter}-${entry.number}`,
+          },
+        })
+      }
+    }
   }
+  return events
 }
 
 export function getQueueStateAll() {
@@ -1434,8 +1606,8 @@ let ticker = null
 export function startQueueTicker(fn) {
   if (ticker) return ticker
   ticker = setInterval(() => {
-    tickQueues()
-    if (fn) fn()
+    const events = tickQueues()
+    if (fn) fn(events)
   }, TICK_MS)
   return ticker
 }
@@ -1445,4 +1617,108 @@ export function stopQueueTicker() {
     clearInterval(ticker)
     ticker = null
   }
+}
+
+/* ------------------------------------------------------------------ */
+/* Telegram account linking                                            */
+/* ------------------------------------------------------------------ */
+
+/**
+ * One website account = one Telegram account. Linking uses a one-time
+ * code ("MQ-123456") generated on the website and entered in the bot.
+ * The Telegram user id is the primary identity, never the username.
+ */
+const telegramAccounts = new Map() // telegramUserId (string) -> account
+const telegramLinkCodes = new Map() // code -> { userId, expiresAt }
+
+const TELEGRAM_LINK_TTL_MS = 15 * 60 * 1000
+
+/** Patient id used for authenticated website/Telegram users. */
+export function patientIdForUser(userId) {
+  return `user-${userId}`
+}
+
+function publicTelegramAccount(account) {
+  if (!account) return null
+  return {
+    id: account.id,
+    userId: account.userId,
+    telegramUserId: account.telegramUserId,
+    telegramUsername: account.telegramUsername ?? null,
+    isVerified: account.isVerified,
+    createdAt: account.createdAt,
+  }
+}
+
+/** Generate a fresh one-time linking code for a website user. */
+export function createTelegramLinkCode(userId) {
+  for (const [code, entry] of telegramLinkCodes) {
+    if (entry.userId === userId) telegramLinkCodes.delete(code)
+  }
+  const code = `MQ-${Math.floor(100000 + Math.random() * 900000)}`
+  telegramLinkCodes.set(code, { userId, expiresAt: Date.now() + TELEGRAM_LINK_TTL_MS })
+  return { code, expiresInSec: Math.floor(TELEGRAM_LINK_TTL_MS / 1000) }
+}
+
+/**
+ * Verify a linking code entered in the Telegram bot. On success the
+ * Telegram account is attached to the website user (previous links of
+ * both sides are removed — one account per user and per telegram id).
+ */
+export function verifyTelegramLink(code, telegramUserId, telegramUsername = '') {
+  const normalizedCode = String(code ?? '').trim().toUpperCase()
+  const entry = telegramLinkCodes.get(normalizedCode)
+  if (!entry || entry.expiresAt <= Date.now()) {
+    if (entry) telegramLinkCodes.delete(normalizedCode)
+    return { ok: false, code: 'invalid_code' }
+  }
+  telegramLinkCodes.delete(normalizedCode)
+
+  const tid = String(telegramUserId)
+  for (const [key, account] of telegramAccounts) {
+    if (key === tid || account.userId === entry.userId) telegramAccounts.delete(key)
+  }
+  const account = {
+    id: `tg-${entry.userId}`,
+    userId: entry.userId,
+    telegramUserId: tid,
+    telegramUsername: typeof telegramUsername === 'string' ? telegramUsername : '',
+    isVerified: true,
+    createdAt: Date.now(),
+  }
+  telegramAccounts.set(tid, account)
+  return { ok: true, account: publicTelegramAccount(account) }
+}
+
+/** Linked Telegram account for a website user id (or null). */
+export function getTelegramByUserId(userId) {
+  for (const account of telegramAccounts.values()) {
+    if (account.userId === userId) return publicTelegramAccount(account)
+  }
+  return null
+}
+
+/** Website user id linked to a Telegram user id (or null). */
+export function getUserIdByTelegram(telegramUserId) {
+  const account = telegramAccounts.get(String(telegramUserId))
+  return account ? account.userId : null
+}
+
+/** Telegram chat id (private chat == telegram user id) of a website user. */
+export function getTelegramChatIdByUserId(userId) {
+  for (const [tid, account] of telegramAccounts) {
+    if (account.userId === userId) return tid
+  }
+  return null
+}
+
+/** Remove the Telegram link of a website user. */
+export function unlinkTelegram(userId) {
+  for (const [tid, account] of telegramAccounts) {
+    if (account.userId === userId) {
+      telegramAccounts.delete(tid)
+      return true
+    }
+  }
+  return false
 }

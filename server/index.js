@@ -37,12 +37,16 @@ import { searchProviderName } from './search.js'
 import {
   cancelQueue,
   countTotalQueues,
+  createTelegramLinkCode,
   dentistRankNote,
+  getAppointment,
+  getAvailableSlots,
   getClinic,
   getDashboard,
   getDoctor,
   getQueueStatus,
   getQueueStateAll,
+  getTelegramByUserId,
   listAppointments,
   listClinicTypes,
   listDistricts,
@@ -50,12 +54,16 @@ import {
   listMedicalHistory,
   listNotifications,
   listSpecialties,
+  patientIdForUser,
   searchClinics,
   searchDentists,
   searchDoctors,
   startQueueTicker,
   stopQueueTicker,
   takeQueue,
+  unlinkTelegram,
+  updateAppointmentStatus,
+  verifyTelegramLink,
 } from './data.js'
 
 const PORT = Number(env('PORT', '3001'))
@@ -333,7 +341,10 @@ function setupSseStream(req, res, headers, patientId) {
     }
   }, 15000)
 
-  const ticker = startQueueTicker(broadcastQueueState)
+  const ticker = startQueueTicker((events) => {
+    broadcastQueueState()
+    if (events?.length) bot.notifyEvents(events)
+  })
   void ticker
 
   sendSse(res, { type: 'init', queues: getQueueStateAll(), ts: Date.now() })
@@ -842,9 +853,93 @@ const server = createServer(async (req, res) => {
     const body = await readJson(req)
     const doctorId = typeof body?.doctor_id === 'string' ? body.doctor_id : ''
     if (!doctorId) return sendError(res, headers, 400, 'doctor_id_required')
-    const status = takeQueue(doctorId, `user-${user.id}`, parseLang(body))
+    const status = takeQueue(
+      doctorId,
+      patientIdForUser(user.id),
+      parseLang(body),
+      {
+        date: typeof body?.date === 'string' ? body.date : 'today',
+        time: typeof body?.time === 'string' ? body.time : 'now',
+        source: 'website',
+      }
+    )
     if (!status) return sendJson(res, 404, { error: 'not_found' }, headers)
     sendJson(res, 200, { queue: status }, headers)
+    return
+  }
+
+  /* Appointments REST — shared with the Telegram bot (source is analytics). */
+  if (req.method === 'GET' && url.pathname === '/api/appointments/availability') {
+    if (rateLimited(ip, 'data')) return sendJson(res, 429, { error: 'rate_limited' }, headers)
+    const doctorId = url.searchParams.get('doctor_id') ?? ''
+    if (!doctorId) return sendError(res, headers, 400, 'doctor_id_required')
+    const date = url.searchParams.get('date') ?? 'today'
+    const slots = getAvailableSlots(doctorId, date, url.searchParams.get('lang') ?? 'uz')
+    if (!slots) return sendJson(res, 404, { error: 'not_found' }, headers)
+    sendJson(res, 200, { availability: slots }, headers)
+    return
+  }
+
+  if (req.method === 'POST' && url.pathname === '/api/appointments') {
+    if (rateLimited(ip, 'data')) return sendJson(res, 429, { error: 'rate_limited' }, headers)
+    const user = currentUser(req)
+    if (!user) return sendUnauthorized(res, headers)
+    const body = await readJson(req)
+    const doctorId = typeof body?.doctor_id === 'string' ? body.doctor_id : ''
+    if (!doctorId) return sendError(res, headers, 400, 'doctor_id_required')
+    const status = takeQueue(
+      doctorId,
+      patientIdForUser(user.id),
+      parseLang(body),
+      {
+        date: typeof body?.date === 'string' && body.date ? body.date : 'today',
+        time: typeof body?.time === 'string' && body.time ? body.time : 'now',
+        source: 'website',
+      }
+    )
+    if (!status) return sendJson(res, 404, { error: 'not_found' }, headers)
+    sendJson(res, 201, { queue: status }, headers)
+    return
+  }
+
+  if (req.method === 'PATCH' && /^\/api\/appointments\/[^/]+$/.test(url.pathname)) {
+    if (rateLimited(ip, 'data')) return sendJson(res, 429, { error: 'rate_limited' }, headers)
+    const user = currentUser(req)
+    if (!user) return sendUnauthorized(res, headers)
+    const body = await readJson(req)
+    const status = typeof body?.status === 'string' ? body.status : ''
+    const result = updateAppointmentStatus(decodeURIComponent(url.pathname.split('/')[3]), status)
+    if (!result) return sendJson(res, 404, { error: 'not_found' }, headers)
+    if (result.error) return sendJson(res, 400, { error: result.error }, headers)
+    if (result.notification) bot.notifyPatient(result.appointment.patientId, result.notification)
+    sendJson(res, 200, { appointment: result.appointment }, headers)
+    return
+  }
+
+  if (req.method === 'DELETE' && /^\/api\/appointments\/[^/]+$/.test(url.pathname)) {
+    if (rateLimited(ip, 'data')) return sendJson(res, 429, { error: 'rate_limited' }, headers)
+    const user = currentUser(req)
+    if (!user) return sendUnauthorized(res, headers)
+    const id = decodeURIComponent(url.pathname.split('/')[3])
+    const appointment = getAppointment(id)
+    if (!appointment || !appointment.patientId || appointment.patientId !== patientIdForUser(user.id)) {
+      return sendJson(res, 404, { error: 'not_found' }, headers)
+    }
+    const status = cancelQueue(appointment.doctorId ?? '', patientIdForUser(user.id))
+    if (!status) return sendJson(res, 404, { error: 'not_found' }, headers)
+    sendJson(res, 200, { queue: status }, headers)
+    return
+  }
+
+  if (req.method === 'GET' && /^\/api\/appointments\/[^/]+$/.test(url.pathname)) {
+    if (rateLimited(ip, 'data')) return sendJson(res, 429, { error: 'rate_limited' }, headers)
+    const user = currentUser(req)
+    if (!user) return sendUnauthorized(res, headers)
+    const appointment = getAppointment(decodeURIComponent(url.pathname.split('/')[3]), url.searchParams.get('lang') ?? 'uz')
+    if (!appointment || appointment.patientId !== patientIdForUser(user.id)) {
+      return sendJson(res, 404, { error: 'not_found' }, headers)
+    }
+    sendJson(res, 200, { appointment }, headers)
     return
   }
 
@@ -966,6 +1061,43 @@ const server = createServer(async (req, res) => {
     return
   }
 
+  /* Telegram account linking (shared backend, website + bot) */
+  if (req.method === 'POST' && url.pathname === '/api/telegram/link') {
+    if (rateLimited(ip, 'data')) return sendJson(res, 429, { error: 'rate_limited' }, headers)
+    const user = currentUser(req)
+    if (!user) return sendUnauthorized(res, headers)
+    const link = createTelegramLinkCode(user.id)
+    sendJson(res, 200, { link }, headers)
+    return
+  }
+
+  if (req.method === 'POST' && url.pathname === '/api/telegram/unlink') {
+    if (rateLimited(ip, 'data')) return sendJson(res, 429, { error: 'rate_limited' }, headers)
+    const user = currentUser(req)
+    if (!user) return sendUnauthorized(res, headers)
+    unlinkTelegram(user.id)
+    sendJson(res, 200, { ok: true }, headers)
+    return
+  }
+
+  if (req.method === 'GET' && url.pathname === '/api/telegram/status') {
+    if (rateLimited(ip, 'data')) return sendJson(res, 429, { error: 'rate_limited' }, headers)
+    const user = currentUser(req)
+    if (!user) return sendUnauthorized(res, headers)
+    const account = getTelegramByUserId(user.id)
+    sendJson(res, 200, { account }, headers)
+    return
+  }
+
+  if (req.method === 'POST' && url.pathname === '/api/telegram/verify') {
+    if (rateLimited(ip, 'data')) return sendJson(res, 429, { error: 'rate_limited' }, headers)
+    const body = await readJson(req)
+    const result = verifyTelegramLink(body?.code, body?.telegram_user_id, body?.telegram_username)
+    if (!result.ok) return sendJson(res, 400, { error: result.code ?? 'invalid_code' }, headers)
+    sendJson(res, 200, { account: result.account }, headers)
+    return
+  }
+
   /* Telegram webhook */
   if (req.method === 'POST' && url.pathname === '/api/telegram/webhook') {
     if (!BOT_TOKEN) {
@@ -990,8 +1122,8 @@ const server = createServer(async (req, res) => {
   sendJson(res, 404, { error: 'Not found' }, headers)
 })
 
-server.listen(PORT, () => {
-  console.log(`[api] MedQueue Tashkent listening on http://localhost:${PORT}`)
+server.listen(PORT, '0.0.0.0', () => {
+  console.log(`[api] MedQueue Tashkent listening on http://0.0.0.0:${PORT}`)
 
   if (!BOT_TOKEN) {
     console.warn('[telegram] TELEGRAM_BOT_TOKEN not set — bot disabled.')

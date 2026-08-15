@@ -8,7 +8,7 @@ import {
   inputClass,
 } from './auth/fields'
 import { ApiError, logout, updateCachedUser, useAuth } from '../lib/auth'
-import { apiChangePassword, apiUpdateProfile } from '../lib/api'
+import { apiChangePassword, apiTelegramLink, apiTelegramStatus, apiTelegramUnlink, apiUpdateProfile } from '../lib/api'
 import { useLang, useT } from '../i18n'
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/
@@ -56,6 +56,151 @@ function InfoRow({ label, value }) {
     <div className="rounded-xl border border-border bg-input px-4 py-3">
       <p className="text-[10px] font-semibold uppercase tracking-widest text-faint">{label}</p>
       <p className="mt-0.5 text-[14px] font-medium text-fg">{value || '—'}</p>
+    </div>
+  )
+}
+
+function TelegramSection({ t }) {
+  const [status, setStatus] = useState(null)
+  const [loading, setLoading] = useState(false)
+  const [link, setLink] = useState(null)
+  const [error, setError] = useState(null)
+  const [copied, setCopied] = useState(false)
+
+  useEffect(() => {
+    let alive = true
+    apiTelegramStatus()
+      .then((data) => alive && setStatus(data?.account ?? null))
+      .catch(() => alive && setStatus(null))
+    return () => {
+      alive = false
+    }
+  }, [status?.telegram_user_id])
+
+  useEffect(() => {
+    if (!link) return
+    const timer = setInterval(() => {
+      apiTelegramStatus()
+        .then((data) => {
+          if (data?.account) {
+            setStatus(data.account)
+            setLink(null)
+          }
+        })
+        .catch(() => {})
+    }, 3000)
+    return () => clearInterval(timer)
+  }, [link])
+
+  async function handleLink() {
+    setLoading(true)
+    setError(null)
+    try {
+      const created = await apiTelegramLink()
+      setLink(created)
+    } catch (err) {
+      const code = err instanceof ApiError ? err.code : null
+      setError(code ? t(`auth.errors.${code}`) : t('auth.errors.network'))
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function handleUnlink() {
+    setLoading(true)
+    setError(null)
+    try {
+      await apiTelegramUnlink()
+      setStatus(null)
+    } catch (err) {
+      const code = err instanceof ApiError ? err.code : null
+      setError(code ? t(`auth.errors.${code}`) : t('auth.errors.network'))
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function handleCopy() {
+    if (!link) return
+    try {
+      await navigator.clipboard.writeText(link.code)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 1500)
+    } catch {}
+  }
+
+  return (
+    <div className="relative mt-8 border-t border-border pt-6">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h2 className="font-display text-lg font-semibold text-fg">
+          🔗 {t('profile.telegram.title')}
+        </h2>
+        {status?.telegram_user_id ? (
+          <span className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1 text-[12px] font-semibold text-emerald-300">
+            ✅ {t('profile.telegram.linked')}
+          </span>
+        ) : (
+          <span className="rounded-full border border-border bg-card px-3 py-1 text-[12px] font-semibold text-muted">
+            {t('profile.telegram.notLinked')}
+          </span>
+        )}
+      </div>
+
+      <p className="mt-1.5 max-w-prose text-[13px] leading-relaxed text-muted">
+        {t('profile.telegram.hint')}
+      </p>
+
+      {error && <p className="mt-2 text-[12px] text-rose-300">{error}</p>}
+
+      {status?.telegram_user_id ? (
+        <div className="mt-3 rounded-xl border border-border bg-input px-4 py-3">
+          <p className="text-[10px] font-semibold uppercase tracking-widest text-faint">
+            {t('profile.telegram.account')}
+          </p>
+          <p className="mt-0.5 text-[14px] font-medium text-fg">
+            {status.telegram_username ? `@${status.telegram_username}` : status.telegram_user_id}
+          </p>
+          <p className="mt-0.5 text-[12px] text-muted">
+            {t('profile.telegram.notificationsOn')}
+          </p>
+          <button
+            type="button"
+            onClick={handleUnlink}
+            disabled={loading}
+            className="mt-3 rounded-full border border-rose-500/30 bg-rose-500/10 px-4 py-2 text-[12px] font-semibold text-rose-300 transition-colors hover:bg-rose-500/20 disabled:opacity-50"
+          >
+            {t('profile.telegram.unlink')}
+          </button>
+        </div>
+      ) : link ? (
+        <div className="mt-3 rounded-xl border border-electric-500/25 bg-electric-500/10 px-4 py-3">
+          <p className="text-[12px] text-electric-200">{t('profile.telegram.codeHint')}</p>
+          <div className="mt-2.5 flex flex-wrap items-center gap-2">
+            <span className="rounded-lg border border-border bg-card px-4 py-2 font-mono text-lg font-bold tracking-widest text-fg">
+              {link.code}
+            </span>
+            <button
+              type="button"
+              onClick={handleCopy}
+              className="rounded-full border border-border bg-card px-4 py-2 text-[12px] font-semibold text-muted transition-colors hover:bg-card-hover hover:text-fg"
+            >
+              {copied ? '✅' : '📋'}
+            </button>
+          </div>
+          <p className="mt-2 text-[11px] text-muted">
+            {t('profile.telegram.expires')} {Math.round(link.expires_in_sec / 60)} {t('profile.telegram.minutes')}
+          </p>
+        </div>
+      ) : (
+        <button
+          type="button"
+          onClick={handleLink}
+          disabled={loading}
+          className="mt-3 rounded-full bg-gradient-to-r from-neon-600 to-electric-600 px-6 py-2.5 text-sm font-semibold text-white shadow-[0_2px_14px_rgba(139,92,246,0.35)] transition-all hover:shadow-[0_2px_20px_rgba(139,92,246,0.55)] disabled:opacity-50"
+        >
+          {t('profile.telegram.linkButton')}
+        </button>
+      )}
     </div>
   )
 }
@@ -492,8 +637,11 @@ export default function ProfilePage({ navigate }) {
                   </div>
                 </motion.form>
               )}
-            </AnimatePresence>
+              </AnimatePresence>
+            </div>
           </div>
+
+          <TelegramSection t={t} />
         </motion.section>
       </div>
     </div>
